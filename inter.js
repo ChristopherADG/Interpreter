@@ -32,8 +32,7 @@ class Tokenizer{
 
     IsOp(chr) {
         return (chr == '+') || (chr == '-') || 
-               (chr == '*') || (chr == '/') ||
-               (chr == '(') || (chr == ')');
+               (chr == '*') || (chr == '/') ;
     }
 
     FindOpType(chr) {
@@ -51,6 +50,17 @@ class Tokenizer{
             case '/':
                 type = "DIVIDE";
                 break;
+        }
+        return type; 
+    }
+
+    IsParen(chr){
+        return (chr == '(') || (chr == ')');
+    }
+
+    FindParenType(chr){
+        var type = "UNKNOWN";
+        switch(chr){
             case '(':
                 type = "LEFT_PAREN"; 
                 break;
@@ -58,20 +68,25 @@ class Tokenizer{
                 type = "RIGHT_PAREN";
                 break; 
         }
-        return type; 
+        return type;
     }
 
     Tokenize(source) {
         var tokens = []; 
         var token = "";
         var state = "DEFAULT";
+        
         for (var index = 0; index < source.length; index++) {
             var chr = source.charAt(index);
             switch(state){
                 case "DEFAULT":
-                var opType = this.FindOpType(chr); 
+                var opType = this.FindOpType(chr);
                 if (this.IsOp(chr)){
                     var tempToken =  new Token(chr, opType);
+                    tokens.push(tempToken);
+                }else if(this.IsParen(chr)){
+                    var parenType = this.FindParenType(chr)
+                    var tempToken = new Token(chr, parenType);
                     tokens.push(tempToken);
                 }else if (Number.isInteger(parseInt(chr))) {
                     token += chr;
@@ -213,7 +228,7 @@ class Calculator{
 
 
 function main() {
-    var expression = "(5*2)-7";
+    var expression = "(600+3+2)*5";
     expression += " ";
     var calc = new Calculator();
     var tokenizer = new Tokenizer();
