@@ -31,13 +31,19 @@ class Tokenizer{
     }
 
     IsOp(chr) {
-        return (chr == '+') || (chr == '-') || 
-               (chr == '*') || (chr == '/') ;
+
+        var addOp = (chr == '+') || (chr == '-');
+        var mulOp = (chr == '*') || (chr == '/');
+
+        var compOp = (chr == '<') || (chr == '>') || (chr == '=');
+        var lgicOp = (chr == '!') || (chr == '|') || (chr == '&');
+
+        return addOp || mulOp || compOp || lgicOp;
     }
 
-    FindOpType(chr) {
+    FindOpType(firstOperator, nextChar) {
         var type = "UNKNOWN"; 
-        switch(chr){
+        switch(firstOperator){
             case '+':
                 type = "ADD";
                 break; 
@@ -49,6 +55,36 @@ class Tokenizer{
                 break;
             case '/':
                 type = "DIVIDE";
+                break;
+            case '<':
+                type = "LESS";
+                if(nextChar == '='){
+                    type = "LESSEQUAL";
+                }
+                break; 
+            case '>':
+                type = "GREATER";
+                if(nextChar == '='){
+                    type = "GREATEREQUAL";
+                }
+                break;
+            case '=':
+                type = "ASSIGMENT";
+                if(nextChar == '='){
+                    type = "EQUAL";
+                }
+                break;
+            case '!':
+                type = "NOT";
+                if(nextChar == '='){
+                    type = "NOTEQUAL";
+                }
+                break;
+            case '|':
+                type = "OR";
+                break;
+            case '&':
+                type = "AND";
                 break;
         }
         return type; 
@@ -73,37 +109,51 @@ class Tokenizer{
 
     Tokenize(source) {
         var tokens = []; 
-        var token = "";
+
+        var token = null;
+        var tokenText = "";
+        var firstOperator = '\0';
         var state = "DEFAULT";
         
         for (var index = 0; index < source.length; index++) {
             var chr = source.charAt(index);
             switch(state){
                 case "DEFAULT":
-                var opType = this.FindOpType(chr);
-                if (this.IsOp(chr)){
-                    var tempToken =  new Token(chr, opType);
-                    tokens.push(tempToken);
-                }else if(this.IsParen(chr)){
-                    var parenType = this.FindParenType(chr)
-                    var tempToken = new Token(chr, parenType);
-                    tokens.push(tempToken);
-                }else if (Number.isInteger(parseInt(chr))) {
-                    token += chr;
-                    state = "NUMBER";
-                }
-                break;
-            case "NUMBER":
-                if (Number.isInteger(parseInt(chr))) {
-                    token += chr;
-                }else{
-                    var tempToken = new Token(token, "NUMBER");
-                    tokens.push(tempToken);
-                    token = "";
-                    state = "DEFAULT";
-                    index--;
-                } 
-                break;
+                    if (this.IsOp(chr)){
+                        firstOperator = chr;
+                        var opType = this.FindOpType(firstOperator, '\0');
+                        token = new Token(chr, opType);
+                        state = "OPERATOR";
+                    }else if (Number.isInteger(parseInt(chr))) {
+                        tokenText += chr;
+                        state = "NUMBER";
+                    }else if(this.IsParen(chr)){
+                        var parenType = this.FindParenType(chr)
+                        var tempToken = new Token(chr, parenType);
+                        tokens.push(tempToken);
+                    }
+                    break;
+                case "OPERATOR":
+                    if(this.IsOp(chr)){
+                        var opType = this.FindOpType(firstOperator, chr);
+                        token = new Token(firstOperator+chr, opType);
+                    }else{
+                        tokens.push(token);
+                        state = "DEFAULT";
+                        index--;
+                    }
+                    break;
+                case "NUMBER":
+                    if (Number.isInteger(parseInt(chr))) {
+                        tokenText += chr;
+                    }else{
+                        var tempToken = new Token(tokenText, "NUMBER");
+                        tokens.push(tempToken);
+                        tokenText = "";
+                        state = "DEFAULT";
+                        index--;
+                    } 
+                    break;
             }  
         }
         return tokens;
@@ -222,13 +272,76 @@ class Calculator{
                     break; 
                 }
         }
+        //console.log("ArithmeticExpression Result: " + result);
         return result; 
     }
+
+    Relation(){
+        var leftExpressionResult = this.ArithmeticExpression();
+        var result = false;
+        var type = this.CurrentToken().type;
+        if(type == "EQUAL" ||
+            type == "LESS" ||
+            type == "GREATER"||
+            type == "LESSEQUAL"||
+            type == "GREATEREQUAL"){
+
+            switch (type) {
+                case "EQUAL":
+                    this.MatchAndEat("EQUAL");
+                    result = leftExpressionResult == this.ArithmeticExpression();
+                    break;
+                case "LESS":
+                    this.MatchAndEat("LESS");
+                    result = leftExpressionResult < this.ArithmeticExpression();
+                    break;
+                case "GREATER":
+                    this.MatchAndEat("GREATER");
+                    result = leftExpressionResult > this.ArithmeticExpression();
+                    break;
+                case "LESSEQUAL":
+                    this.MatchAndEat("LESSEQUAL");
+                    result = leftExpressionResult <= this.ArithmeticExpression();
+                    break;
+                case "GREATEREQUAL":
+                    this.MatchAndEat("GREATEREQUAL");
+                    result = leftExpressionResult >= this.ArithmeticExpression();
+                    break;
+            }
+        }
+        return result;
+    }
+
+    BooleanTerm(){
+        var result = this.Relation(); //BooleanFactor
+
+        while(this.CurrentToken().type == "AND"){
+            this.MatchAndEat("AND");
+            result = result && this.BooleanFactor();
+        }
+        return result;
+    }
+
+    BooleanExpression(){
+        var result = this.BooleanTerm();
+
+        while(this.CurrentToken().type == "OR"){
+            switch (this.CurrentToken().type) {
+                case "OR":
+                    this.MatchAndEat("OR");
+                    result = result || this.BooleanTerm();
+                    break;
+            }
+        }
+
+        return result;
+    }
+
 }
 
 
 function main() {
-    var expression = "(600+3+2)*5";
+    var expression = "5+7";
     expression += " ";
     var calc = new Calculator();
     var tokenizer = new Tokenizer();
@@ -238,8 +351,7 @@ function main() {
     calc.tokens = tokenizer.Tokenize(expression);
     tokenizer.PrettyPrint(calc.tokens);
     console.log("--------------");
-    console.log("Expression Result: " + calc.ArithmeticExpression());
-    
+    console.log("BooleanExpression Result: " + calc.BooleanExpression());
 }
 
 main();
