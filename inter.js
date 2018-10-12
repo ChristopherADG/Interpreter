@@ -231,127 +231,245 @@ class Calculator{
     }
 
     Factor() {
-        var result = 0; 
+        var result = null; 
+
         if (this.CurrentToken().type == 'LEFT_PAREN') {
+
             this.MatchAndEat('LEFT_PAREN');
-            result = this.ArithmeticExpression();
+            result = this.BooleanExpression();
             this.MatchAndEat('RIGHT_PAREN');
+
         } else if(this.CurrentToken().type == 'NUMBER'){
-            result = parseInt(this.CurrentToken().text);
-            this.MatchAndEat('NUMBER');
+            var token = this.MatchAndEat("NUMBER");
+            result = new NumberNode(parseInt(token.text));
         } 
         return result;
     }
 
     Term() {
-        var result = this.Factor();
+        var node = this.Factor();
+
         while ( this.CurrentToken().type == 'MULTIPLY' ||
                 this.CurrentToken().type == 'DIVIDE') {
+
             switch(this.CurrentToken().type) {
-            case 'MULTIPLY':
-                result = result * this.Multiply();
-                break; 
-            case 'DIVIDE':
-                result = result / this.Divide();
-                break; 
+                case 'MULTIPLY':
+                    node = new BinOpNode("MULTIPLY", node, this.Multiply());
+                    break; 
+                case 'DIVIDE':
+                    node = new BinOpNode("DIVIDE", node, this.Divide());
+                    break; 
             }
         }   
-        return result;
+        return node;
     }
     
     ArithmeticExpression() { 
-        var result = this.Term(); 
+        var node = this.Term(); 
         while (this.CurrentToken().type == 'ADD' ||
                this.CurrentToken().type == 'SUBTRACT') {
             switch(this.CurrentToken().type) { 
                 case 'ADD':
-                    result = result + this.Add(); 
+                    node = new BinOpNode("ADD", node, this.Add());
                     break; 
                 case 'SUBTRACT':
-                    result = result - this.Subtract(); 
+                    node = new BinOpNode("SUBTRACT", node, this.Subtract()); 
                     break; 
-                }
+            }
         }
-        //console.log("ArithmeticExpression Result: " + result);
-        return result; 
+        return node; 
     }
 
     Relation(){
-        var leftExpressionResult = this.ArithmeticExpression();
-        var result = false;
-        var type = this.CurrentToken().type;
-        if(type == "EQUAL" ||
-            type == "LESS" ||
-            type == "GREATER"||
-            type == "LESSEQUAL"||
-            type == "GREATEREQUAL"){
+        var node = this.ArithmeticExpression();
 
-            switch (type) {
+        if(this.CurrentToken().type == "EQUAL" ||
+        this.CurrentToken().type == "LESS" ||
+        this.CurrentToken().type == "GREATER"||
+        this.CurrentToken().type == "LESSEQUAL"||
+        this.CurrentToken().type == "GREATEREQUAL"||
+        this.CurrentToken().type == "NOTEQUAL"){
+
+            switch (this.CurrentToken().type) {
                 case "EQUAL":
                     this.MatchAndEat("EQUAL");
-                    result = leftExpressionResult == this.ArithmeticExpression();
+                    node = new BinOpNode("EQUAL", node, this.ArithmeticExpression());
                     break;
                 case "LESS":
                     this.MatchAndEat("LESS");
-                    result = leftExpressionResult < this.ArithmeticExpression();
+                    node = new BinOpNode("LESS", node, this.ArithmeticExpression());
                     break;
                 case "GREATER":
                     this.MatchAndEat("GREATER");
-                    result = leftExpressionResult > this.ArithmeticExpression();
+                    node = new BinOpNode("GREATER", node, this.ArithmeticExpression());
+                    // console.log(node.left.eval());
+                    // console.log(node.right.eval());
+                    // console.log(node.op);
                     break;
                 case "LESSEQUAL":
                     this.MatchAndEat("LESSEQUAL");
-                    result = leftExpressionResult <= this.ArithmeticExpression();
+                    node = new BinOpNode("LESSEQUAL", node, this.ArithmeticExpression());
                     break;
                 case "GREATEREQUAL":
                     this.MatchAndEat("GREATEREQUAL");
-                    result = leftExpressionResult >= this.ArithmeticExpression();
+                    node = new BinOpNode("GREATEREQUAL", node, this.ArithmeticExpression());
+                    break;
+                case "NOTEQUAL":
+                    this.MatchAndEat("NOTEQUAL");
+                    node = new BinOpNode("NOTEQUAL", node, this.ArithmeticExpression());
                     break;
             }
         }
-        return result;
+        return node;
     }
 
     BooleanTerm(){
-        var result = this.Relation(); //BooleanFactor
+        var node = this.Relation(); //BooleanFactor
 
         while(this.CurrentToken().type == "AND"){
             this.MatchAndEat("AND");
-            result = result && this.BooleanFactor();
+            node = new BinOpNode("AND", node, this.Relation());
         }
-        return result;
+        return node;
     }
 
     BooleanExpression(){
-        var result = this.BooleanTerm();
+        var node = this.BooleanTerm();
+        //console.log(node.eval());
 
-        while(this.CurrentToken().type == "OR"){
+        while(this.CurrentToken().type == "OR" ||
+                this.CurrentToken().type == "AND"){
+
             switch (this.CurrentToken().type) {
                 case "OR":
                     this.MatchAndEat("OR");
-                    result = result || this.BooleanTerm();
+                    node = new BinOpNode("OR", node, this.BooleanTerm());
                     break;
             }
         }
 
+        return node;
+    }
+
+}
+
+class Node{
+    constructor(){}
+    eval(){}
+}
+
+class BinOpNode extends Node {
+    constructor(op, left, right){
+        super();
+        this.op = op;
+        this.left = left;
+        this.right = right;
+        
+    }
+
+    ToObject(node){
+        return node.eval();
+    }
+
+    eval(){
+        var result = null;
+        switch(this.op){
+            case 'ADD':
+                result = (parseInt(this.left.eval()) + parseInt(this.right.eval()));
+                
+                break; 
+            case 'SUBTRACT':
+                result = (parseInt(this.left.eval()) - parseInt(this.right.eval()));
+                break;
+            case 'MULTIPLY':
+                result = (parseInt(this.left.eval()) * parseInt(this.right.eval()));
+                break;
+            case 'DIVIDE':
+                if (this.right.eval() == 0){
+                    throw new Error("Error: Division by Zero!");
+                }
+                result = (parseInt(this.left) / parseInt(this.right));
+                break;
+            case 'LESS':
+                result = (this.left.eval() < this.right.eval());
+                break; 
+            case 'GREATER':
+                result = (this.left.eval() > this.right.eval());
+                break;
+            case 'EQUAL':
+                result = (this.ToObject(this.left) == this.ToObject(this.right));
+                break;
+            case 'NOTEQUAL':
+                result = (this.ToObject(this.left) != this.ToObject(this.right));
+                break;
+            case 'LESSEQUAL':
+                result = (this.left.eval() <= this.right.eval());
+                break;
+            case 'GREATEREQUAL':
+                result = (this.left.eval() >= this.right.eval());
+                break;
+            case 'OR':
+                result = ((this.left == 'true') || (this.right == 'true'));
+                break;
+            case 'AND':
+                result = ((this.left == 'true') && (this.right == 'true'));
+                break;
+        }
         return result;
     }
 
 }
 
+class NumberNode extends Node
+{
+    constructor(value){
+        super();
+        this.value = value;
+        
+    }
+
+    eval(){
+        return this.value;
+    }
+   
+    toString(){
+        return this.value + "";
+    }
+}
+
+class BooleanNode extends Node
+{
+    constructor(value){
+        super();
+        this.value = value;
+        
+    }
+
+    eval(){
+        return this.value;
+    }
+   
+    toString(){
+        return this.value + "";
+    }
+}
 
 function main() {
-    var expression = "5+7";
-    expression += " ";
     var calc = new Calculator();
     var tokenizer = new Tokenizer();
+
+    var expression = "((5+1)*100-2+3)>501";
+    expression += " ";
+    
 
     console.log("Expression: " + expression);
     console.log("--------------");
     calc.tokens = tokenizer.Tokenize(expression);
     tokenizer.PrettyPrint(calc.tokens);
     console.log("--------------");
-    console.log("BooleanExpression Result: " + calc.BooleanExpression());
+
+    var result = calc.BooleanExpression();
+    console.log("Result: " + result.eval());
 }
 
 main();
