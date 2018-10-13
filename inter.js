@@ -34,11 +34,13 @@ class Tokenizer{
 
         var addOp = (chr == '+') || (chr == '-');
         var mulOp = (chr == '*') || (chr == '/');
+        return addOp || mulOp;
+    }
 
+    isLgicOp(chr){
         var compOp = (chr == '<') || (chr == '>') || (chr == '=');
         var lgicOp = (chr == '!') || (chr == '|') || (chr == '&');
-
-        return addOp || mulOp || compOp || lgicOp;
+        return compOp || lgicOp;
     }
 
     FindOpType(firstOperator, nextChar) {
@@ -107,21 +109,32 @@ class Tokenizer{
         return type;
     }
 
+    IsVariable(chr){
+        return chr.match(/[a-z]/i);
+    }
+
     Tokenize(source) {
         var tokens = []; 
 
         var token = null;
         var tokenText = "";
-        var firstOperator = '\0';
+        var firstOperator = '';
         var state = "DEFAULT";
         
         for (var index = 0; index < source.length; index++) {
+
             var chr = source.charAt(index);
             switch(state){
+
                 case "DEFAULT":
                     if (this.IsOp(chr)){
                         firstOperator = chr;
-                        var opType = this.FindOpType(firstOperator, '\0');
+                        var opType = this.FindOpType(firstOperator, '')
+                        var tempToken = new Token(chr, opType);
+                        tokens.push(tempToken);
+                    }else if(this.isLgicOp(chr)){
+                        firstOperator = chr;
+                        var opType = this.FindOpType(firstOperator, '');
                         token = new Token(chr, opType);
                         state = "OPERATOR";
                     }else if (Number.isInteger(parseInt(chr))) {
@@ -131,10 +144,13 @@ class Tokenizer{
                         var parenType = this.FindParenType(chr)
                         var tempToken = new Token(chr, parenType);
                         tokens.push(tempToken);
+                    }else if(this.IsVariable(chr)){
+                        tokenText += chr;
+                        state = "VARIABLE";
                     }
                     break;
                 case "OPERATOR":
-                    if(this.IsOp(chr)){
+                    if(this.isLgicOp(chr)){
                         var opType = this.FindOpType(firstOperator, chr);
                         token = new Token(firstOperator+chr, opType);
                     }else{
@@ -154,6 +170,17 @@ class Tokenizer{
                         index--;
                     } 
                     break;
+                case "VARIABLE":
+                    if(chr.match(/[a-z]/i)){
+                        tokenText += chr;
+                    }else{
+                        var tempToken = new Token(tokenText, "VARIABLE");
+                        tokens.push(tempToken);
+                        tokenText = "";
+                        state = "DEFAULT";
+                        index--;
+                    } 
+                    break;
             }  
         }
         return tokens;
@@ -167,6 +194,8 @@ class Tokenizer{
             if (token.type == "NUMBER"){
                 console.log("Number....: " + token.text);
                 numberCount++;
+            }else if(token.type == "VARIABLE"){
+                console.log("Variable..: " + token.text);
             }else{
                 console.log("Operator..: " + token.type);
                 opCount++;
@@ -247,7 +276,7 @@ class Calculator{
     }
 
     Term() {
-        var node = this.Factor();
+        var node = this.SignedFactor();
 
         while ( this.CurrentToken().type == 'MULTIPLY' ||
                 this.CurrentToken().type == 'DIVIDE') {
@@ -324,7 +353,7 @@ class Calculator{
     }
 
     BooleanTerm(){
-        var node = this.Relation(); //BooleanFactor
+        var node = this.NotFactor(); //BooleanFactor
 
         while(this.CurrentToken().type == "AND"){
             this.MatchAndEat("AND");
@@ -349,6 +378,24 @@ class Calculator{
         }
 
         return node;
+    }
+
+    SignedFactor(){
+        if(this.CurrentToken().type == "SUBTRACT"){
+            this.MatchAndEat("SUBTRACT");
+            var node = new NegOpNode(this.Factor());
+            return node;
+        }
+        return this.Factor();
+    }
+
+    NotFactor(){
+        if (this.CurrentToken().type == "NOT"){
+            this.MatchAndEat("NOT");
+            var node = this.Relation();
+            return new NotOpNode(node);
+        }
+        return this.Relation();
     }
 
 }
@@ -388,7 +435,7 @@ class BinOpNode extends Node {
                 if (this.right.eval() == 0){
                     throw new Error("Error: Division by Zero!");
                 }
-                result = (parseInt(this.left) / parseInt(this.right));
+                result = (parseInt(this.left.eval()) / parseInt(this.right.eval()));
                 break;
             case 'LESS':
                 result = (this.left.eval() < this.right.eval());
@@ -454,11 +501,44 @@ class BooleanNode extends Node
     }
 }
 
+class NegOpNode extends Node{
+    constructor (node){
+        super();
+        this.node = node;
+    }
+
+    ToInt(node){
+        var res = node.eval();
+        return parseInt(res);
+    }
+
+    eval(){
+        var result = -this.ToInt(this.node);
+        return result;
+    }
+}
+
+class NotOpNode extends Node
+{
+    constructor(node){
+        super();
+        this.node = node;
+    }
+    ToBoolean(node){
+        var res = node.eval();
+        return res == "true";
+    }
+    eval(){
+        var result = this.ToBoolean(this.node);
+        return result;
+    }
+}
+
 function main() {
     var calc = new Calculator();
     var tokenizer = new Tokenizer();
 
-    var expression = "((5+1)*100-2+3)>501";
+    var expression = "!(-4==-4)";
     expression += " ";
     
 
@@ -469,7 +549,14 @@ function main() {
     console.log("--------------");
 
     var result = calc.BooleanExpression();
-    console.log("Result: " + result.eval());
+    try {
+        console.log("Result: " + result.eval());
+    }
+    catch(err) {
+        console.log(err);
+    }
 }
 
 main();
+
+//Pagina 130
