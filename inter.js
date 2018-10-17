@@ -144,7 +144,7 @@ class Tokenizer{
                         var parenType = this.FindParenType(chr)
                         var tempToken = new Token(chr, parenType);
                         tokens.push(tempToken);
-                    }else if(this.IsVariable(chr)){
+                    }else if(this.IsVariable(chr) || chr == ";"){
                         tokenText += chr;
                         state = "VARIABLE";
                     }
@@ -153,6 +153,7 @@ class Tokenizer{
                     if(this.isLgicOp(chr)){
                         var opType = this.FindOpType(firstOperator, chr);
                         token = new Token(firstOperator+chr, opType);
+                        
                     }else{
                         tokens.push(token);
                         state = "DEFAULT";
@@ -174,7 +175,9 @@ class Tokenizer{
                     if(chr.match(/[a-z]/i)){
                         tokenText += chr;
                     }else{
-                        var tempToken = new Token(tokenText, "VARIABLE");
+                        var type = this.FindStatementType(tokenText);
+                        var tempToken = new Token(tokenText, type);
+                        
                         tokens.push(tempToken);
                         tokenText = "";
                         state = "DEFAULT";
@@ -205,12 +208,25 @@ class Tokenizer{
     
     }
 
+    FindStatementType(str){
+        var type = "UNKNOWN";
+        switch(str)
+        {
+            case ";":
+            type = "END";
+            break;
+            default:
+            type = "VARIABLE";
+        }
+        return type;
+    }
 }
 
 class Calculator{
     constructor(){
         this.currentTokenPosition = 0;
         this.tokens = [];
+        this.symbolTable = [];
     }
 
     GetToken(offset){
@@ -271,7 +287,11 @@ class Calculator{
         } else if(this.CurrentToken().type == 'NUMBER'){
             var token = this.MatchAndEat("NUMBER");
             result = new NumberNode(parseInt(token.text));
-        } 
+        } else if(this.CurrentToken().type == 'VARIABLE'){
+            var token = this.MatchAndEat("VARIABLE");
+            var node = new VariableNode(token.text, this);
+            return node;
+        }
         return result;
     }
 
@@ -398,11 +418,94 @@ class Calculator{
         return this.Relation();
     }
 
-}
+    setVariable(name, value){
+        var bandera = false;
+        var pos = 0;
+        for (var index = 0; index < this.symbolTable.length; index++) {
+            if(this.symbolTable[index].name == name){
+                bandera = true;
+                pos = index;
+            }
+        }
+        if(bandera){
+            var vari = {name , value};
+            this.symbolTable[pos] = vari;
+        }else{
+            var vari = {name , value};
+            this.symbolTable.push(vari);
+        }
+        return value;
+    }
+
+    getVariable(name){
+        var value;
+        this.symbolTable.forEach(vari => {
+            if(vari.name == name){
+                
+                value = vari.value;
+            }
+        });
+        if(value != null){
+            return value;
+        }
+        return null;
+    }
+
+    Statement(){
+        var node = null;
+        var type = this.CurrentToken().type;
+        if (this.IsAssignment()){
+            node = this.Assignment();
+        }
+        return node;
+    }
+
+    NextToken(){
+        return this.GetToken(1);
+    }
+
+    IsAssignment(){
+        var type = this.CurrentToken().type;
+        return type == "VARIABLE" && this.NextToken().type == "ASSIGMENT";
+    }
+
+    Assignment(){
+            var name = this.MatchAndEat("VARIABLE").text;
+            this.MatchAndEat("ASSIGNMENT");
+            var value = this.Relation();
+            var node = new AssignmentNode(name, value, this);
+            return node;
+    }
+
+    Block(){
+        var statements = [];
+        while (this.CurrentToken().type != "END"){
+             
+            statements.push(this.Statement());
+        }
+        this.MatchAndEat("END");
+        return statements;
+    }
+}  
 
 class Node{
     constructor(){}
     eval(){}
+}
+
+class VariableNode extends Node{
+    constructor(varName, parser){
+        super();
+        this.varName = varName;
+        this.parser = parser;
+    }
+    eval(){
+        var varValue= this.parser.getVariable(this.varName);
+        if(varValue == null){
+            console.log("Undefined Variable: " + this.varName);
+        }
+        return varValue;
+    }
 }
 
 class BinOpNode extends Node {
@@ -534,29 +637,63 @@ class NotOpNode extends Node
     }
 }
 
+class AssignmentNode extends Node{
+    constructor(name, value, parser){
+        super();
+        this.name = name;
+        this.value = value;
+        this.parser = parser;
+    }
+    eval(){ 
+        return this.parser.setVariable(this.name, this.value.eval());
+    }
+}
+
 function main() {
     var calc = new Calculator();
     var tokenizer = new Tokenizer();
 
-    var expression = "!(-4==-4)";
-    expression += " ";
+    var expressionList = [];
+    expressionList.push("(100*2+2)*2+5>=500 ");
+    expressionList.push("((5+1)*100-2+3) ");
+    expressionList.push("(3==3) ");
+    expressionList.push("(853+92*5)*10-20/2+771 ");
+    expressionList.push("count=10");  
     
+    //Interpretar
+    var commandList = [];
+    expressionList.forEach(expression => {
+        console.log("Expression: "+ expression);
+        calc.currentTokenPosition = 0;
+        calc.tokens = tokenizer.Tokenize(expression);
+        var node = calc.BooleanExpression();
+        if (node != null){
+            commandList.push(node);
+        }
+    });
 
-    console.log("Expression: " + expression);
-    console.log("--------------");
-    calc.tokens = tokenizer.Tokenize(expression);
-    tokenizer.PrettyPrint(calc.tokens);
-    console.log("--------------");
-
-    var result = calc.BooleanExpression();
-    try {
-        console.log("Result: " + result.eval());
-    }
-    catch(err) {
-        console.log(err);
-    }
+    console.log("Now, lets calculate expressions...");
+    commandList.forEach(command => {
+        console.log("Expression Result: " + command.eval());
+    });
+    
 }
 
-main();
+function main2(){
+    var calc = new Calculator();
+    var tokenizer = new Tokenizer();
+    var script = "cout = 5" +
+    "msg = cout " +
+    "cout = cout + msg; ";
+    calc.tokens = tokenizer.Tokenize(script);
+    //console.log(calc.tokens);
+    var script = calc.Block();
+    script.forEach(node => {
+        node.eval();
+    });
+    console.log(calc.symbolTable);
+}
+
+main2();
 
 //Pagina 130
