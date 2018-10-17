@@ -225,6 +225,12 @@ class Tokenizer{
             case "while":
                 type = "WHILE";
                 break;
+            case "if":
+                type = "IF";
+                break;
+            case "else":
+                type = "ELSE";
+                break;
             default:
             type = "VARIABLE";
         }
@@ -265,26 +271,6 @@ class Calculator{
         return token;
     }
 
-    Add() { 
-        this.MatchAndEat('ADD');
-        return this.Term(); 
-    }
-
-    Subtract() { 
-        this.MatchAndEat('SUBTRACT');
-        return this.Term(); 
-    }
-
-    Multiply() {
-        this.MatchAndEat('MULTIPLY');
-        return this.Term(); 
-    }
-
-    Divide() {
-        this.MatchAndEat('DIVIDE');
-        return this.Term(); 
-    }
-
     Factor() {
         var result = null; 
 
@@ -315,10 +301,12 @@ class Calculator{
 
             switch(this.CurrentToken().type) {
                 case 'MULTIPLY':
-                    node = new BinOpNode("MULTIPLY", node, this.Multiply());
+                    this.MatchAndEat('MULTIPLY');
+                    node = new BinOpNode("MULTIPLY", node, this.Term());
                     break; 
                 case 'DIVIDE':
-                    node = new BinOpNode("DIVIDE", node, this.Divide());
+                    this.MatchAndEat('DIVIDE');
+                    node = new BinOpNode("DIVIDE", node, this.Term());
                     break;
                 case 'POW':
                     this.MatchAndEat('POW');
@@ -339,10 +327,12 @@ class Calculator{
                this.CurrentToken().type == 'SUBTRACT') {
             switch(this.CurrentToken().type) { 
                 case 'ADD':
-                    node = new BinOpNode("ADD", node, this.Add());
+                    this.MatchAndEat('ADD');
+                    node = new BinOpNode("ADD", node, this.Term());
                     break; 
                 case 'SUBTRACT':
-                    node = new BinOpNode("SUBTRACT", node, this.Subtract()); 
+                    this.MatchAndEat('SUBTRACT');
+                    node = new BinOpNode("SUBTRACT", node, this.Term()); 
                     break; 
             }
         }
@@ -404,7 +394,6 @@ class Calculator{
 
     BooleanExpression(){
         var node = this.BooleanTerm();
-        //console.log(node.eval());
 
         while(this.CurrentToken().type == "OR" ||
                 this.CurrentToken().type == "AND"){
@@ -470,7 +459,7 @@ class Calculator{
         }
         return null;
     }
-
+    //VERY IMPORTANT METHOD
     Statement(){
         var node = null;
         var type = this.CurrentToken().type;
@@ -479,7 +468,10 @@ class Calculator{
         }else if (this.IsWhile())
         {
             node = this.While();
-        }else{
+        }else if (this.IsIfElse()){
+            node = this.If();
+        }
+        else{
             node = this.BooleanExpression();
         }
         return node;
@@ -496,15 +488,11 @@ class Calculator{
         condition = this.Relation();
         body = this.Block();
         return new WhileNode(condition, body);
-    }   
-
-    NextToken(){
-        return this.GetToken(1);
     }
 
     IsAssignment(){
         var type = this.CurrentToken().type;
-        return type == "VARIABLE" && this.NextToken().type == "ASSIGMENT";
+        return type == "VARIABLE" && this.GetToken(1).type == "ASSIGMENT";
     }
 
     Assignment(){
@@ -513,6 +501,27 @@ class Calculator{
             var value = this.Relation();
             var node = new AssignmentNode(name, value, this);
             return node;
+    }
+
+    IsIfElse(){
+        var type = this.CurrentToken().type;
+        return type == "IF" || type == "ELSE";
+    }
+
+    If(){
+        var condition=null, thenPart=null, elsePart=null;
+        this.MatchAndEat("IF");
+        condition = this.Relation();
+        thenPart = this.Block();
+        if ( this.CurrentToken().type == "ELSE" ){
+             this.MatchAndEat("ELSE");
+            if (this.CurrentToken().type == "IF" ){
+                elsePart = this.If();
+            }else{
+                elsePart = this.Block();
+            } 
+        }
+        return new IfNode(condition, thenPart, elsePart);
     }
 
     Block(){
@@ -708,23 +717,44 @@ class WhileNode extends Node
     }
 }
 
-function main(){
-    var calc = new Calculator();
-    var tokenizer = new Tokenizer();
-    var script = "count = 1 "
-    script += "while (count <= 4) "
-    script += "count = count + 1;; ";
-    calc.tokens = tokenizer.Tokenize(script);
-    //console.log(calc.tokens);
-    var script = calc.Block();
-    script.eval();
-    console.log(calc.symbolTable);
-
-    var h = 1;
-    while (h <= 4) {
-        h++;
+class IfNode extends Node{
+    constructor( condition, thenPart, elsePart){
+        super();
+        this.condition = condition;
+        this.thenPart = thenPart;
+        this.elsePart = elsePart;
     }
-    console.log(h);
+
+    eval(){
+        var ret = null;
+        if ( (this.condition != null) && (this.thenPart != null)){
+            if(this.condition.eval()){
+                ret = this.thenPart.eval();
+            }
+        }else if((this.condition != null) && (this.elsePart != null)){
+            if(!this.condition.eval()){
+                ret = this.thenPart.eval();
+            }
+        }
+        return ret;
+    }
+}
+
+function main(){
+    fs = require('fs');
+    fs.readFile('/Users/christopher/Desktop/Inter/script.txt', 'utf8', function (err,data) {
+        if (err) {
+            return console.log(err);
+        }
+        var calc = new Calculator();
+        var tokenizer = new Tokenizer();
+        var script = data.toString();
+        calc.tokens = tokenizer.Tokenize(script);
+        //console.log(calc.tokens);
+        var script = calc.Block();
+        script.eval();
+        console.log(calc.symbolTable);
+    });
 }
 
 main();
