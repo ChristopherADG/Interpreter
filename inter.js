@@ -220,8 +220,11 @@ class Tokenizer{
         switch(str)
         {
             case ";":
-            type = "END";
-            break;
+                type = "END";
+                break;
+            case "while":
+                type = "WHILE";
+                break;
             default:
             type = "VARIABLE";
         }
@@ -233,7 +236,7 @@ class Calculator{
     constructor(){
         this.currentTokenPosition = 0;
         this.tokens = [];
-        this.symbolTable = [];
+        this.symbolTable = [{name: "pi", value: 3.141592653589793}];
     }
 
     GetToken(offset){
@@ -293,7 +296,7 @@ class Calculator{
 
         } else if(this.CurrentToken().type == 'NUMBER'){
             var token = this.MatchAndEat("NUMBER");
-            result = new NumberNode(parseInt(token.text));
+            result = new NumberNode(parseFloat(token.text));
         } else if(this.CurrentToken().type == 'VARIABLE'){
             var token = this.MatchAndEat("VARIABLE");
             var node = new VariableNode(token.text, this);
@@ -473,9 +476,27 @@ class Calculator{
         var type = this.CurrentToken().type;
         if (this.IsAssignment()){
             node = this.Assignment();
+        }else if (this.IsWhile())
+        {
+            node = this.While();
+        }else{
+            node = this.BooleanExpression();
         }
         return node;
     }
+
+
+    IsWhile(){
+        return this.CurrentToken().type == "WHILE"
+    }
+
+    While(){
+        var condition, body;
+        this.MatchAndEat("WHILE");
+        condition = this.Relation();
+        body = this.Block();
+        return new WhileNode(condition, body);
+    }   
 
     NextToken(){
         return this.GetToken(1);
@@ -501,7 +522,7 @@ class Calculator{
             statements.push(this.Statement());
         }
         this.MatchAndEat("END");
-        return statements;
+        return new BlockNode(statements);
     }
 }  
 
@@ -542,20 +563,20 @@ class BinOpNode extends Node {
         var result = null;
         switch(this.op){
             case 'ADD':
-                result = (parseInt(this.left.eval()) + parseInt(this.right.eval()));
+                result = (this.left.eval() +this.right.eval());
                 
                 break; 
             case 'SUBTRACT':
-                result = (parseInt(this.left.eval()) - parseInt(this.right.eval()));
+                result = (this.left.eval() - this.right.eval());
                 break;
             case 'MULTIPLY':
-                result = (parseInt(this.left.eval()) * parseInt(this.right.eval()));
+                result = (this.left.eval() * this.right.eval());
                 break;
             case 'DIVIDE':
                 if (this.right.eval() == 0){
                     throw new Error("Error: Division by Zero!");
                 }
-                result = (parseInt(this.left.eval()) / parseInt(this.right.eval()));
+                result = (this.left.eval() / this.right.eval());
                 break;
             case 'LESS':
                 result = (this.left.eval() < this.right.eval());
@@ -627,39 +648,6 @@ class BooleanNode extends Node
     }
 }
 
-class NegOpNode extends Node{
-    constructor (node){
-        super();
-        this.node = node;
-    }
-
-    ToInt(node){
-        var res = node.eval();
-        return parseInt(res);
-    }
-
-    eval(){
-        var result = -this.ToInt(this.node);
-        return result;
-    }
-}
-
-class NotOpNode extends Node
-{
-    constructor(node){
-        super();
-        this.node = node;
-    }
-    ToBoolean(node){
-        var res = node.eval();
-        return res == "true";
-    }
-    eval(){
-        var result = this.ToBoolean(this.node);
-        return result;
-    }
-}
-
 class AssignmentNode extends Node{
     constructor(name, value, parser){
         super();
@@ -672,49 +660,73 @@ class AssignmentNode extends Node{
     }
 }
 
-function main() {
-    var calc = new Calculator();
-    var tokenizer = new Tokenizer();
+class BlockNode extends Node{
+    constructor(statements){
+        super();
+        this.statements = statements;
+    }
+    eval(){
+        var ret = null;
+        this.statements.forEach(statement => {
+            ret = statement.eval();
+        });
+        
+        return ret;
+    }
 
-    var expressionList = [];
-    expressionList.push("(100*2+2)*2+5>=500 ");
-    expressionList.push("((5+1)*100-2+3) ");
-    expressionList.push("(3==3) ");
-    expressionList.push("(853+92*5)*10-20/2+771 ");
-    expressionList.push("count=10");  
-    
-    //Interpretar
-    var commandList = [];
-    expressionList.forEach(expression => {
-        console.log("Expression: "+ expression);
-        calc.currentTokenPosition = 0;
-        calc.tokens = tokenizer.Tokenize(expression);
-        var node = calc.BooleanExpression();
-        if (node != null){
-            commandList.push(node);
-        }
-    });
+    get(index){
+        return this.statements[index];
+    }
 
-    console.log("Now, lets calculate expressions...");
-    commandList.forEach(command => {
-        console.log("Expression Result: " + command.eval());
-    });
-    
+    getStatements(){
+        return this.statements;
+    }
+
+    toString(){
+        var str = "";
+        this.statements.forEach(statement => {
+            str = str + statement + "\n";
+        });
+        return str;
+    }
 }
 
-function main2(){
+class WhileNode extends Node
+{
+    constructor(condition, body){
+        super();
+        this.condition = condition;
+        this.body = body;
+    }
+    eval(){
+    var ret = null;
+    while (this.condition.eval())
+    {
+        ret = this.body.eval();
+    }
+    return ret;
+    }
+}
+
+function main(){
     var calc = new Calculator();
     var tokenizer = new Tokenizer();
-    var script = "cout = 5*7^2; "
+    var script = "count = 1 "
+    script += "while (count <= 4) "
+    script += "count = count + 1;; ";
     calc.tokens = tokenizer.Tokenize(script);
-    console.log(calc.tokens);
+    //console.log(calc.tokens);
     var script = calc.Block();
-    script.forEach(node => {
-        node.eval();
-    });
+    script.eval();
     console.log(calc.symbolTable);
+
+    var h = 1;
+    while (h <= 4) {
+        h++;
+    }
+    console.log(h);
 }
 
-main2();
+main();
 
-//Pagina 130
+//Pagina 196
