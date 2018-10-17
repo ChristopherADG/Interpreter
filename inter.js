@@ -34,7 +34,8 @@ class Tokenizer{
 
         var addOp = (chr == '+') || (chr == '-');
         var mulOp = (chr == '*') || (chr == '/');
-        return addOp || mulOp;
+        var powOp = (chr == '^') || (chr == '%');
+        return addOp || mulOp || powOp;
     }
 
     isLgicOp(chr){
@@ -87,6 +88,12 @@ class Tokenizer{
                 break;
             case '&':
                 type = "AND";
+                break;
+            case '^':
+                type = "POW";
+                break;
+            case '%':
+                type = "MODULUS";
                 break;
         }
         return type; 
@@ -172,7 +179,7 @@ class Tokenizer{
                     } 
                     break;
                 case "VARIABLE":
-                    if(chr.match(/[a-z]/i)){
+                    if(this.IsVariable(chr)){
                         tokenText += chr;
                     }else{
                         var type = this.FindStatementType(tokenText);
@@ -267,12 +274,12 @@ class Calculator{
 
     Multiply() {
         this.MatchAndEat('MULTIPLY');
-        return this.Factor(); 
+        return this.Term(); 
     }
 
     Divide() {
         this.MatchAndEat('DIVIDE');
-        return this.Factor(); 
+        return this.Term(); 
     }
 
     Factor() {
@@ -299,7 +306,9 @@ class Calculator{
         var node = this.SignedFactor();
 
         while ( this.CurrentToken().type == 'MULTIPLY' ||
-                this.CurrentToken().type == 'DIVIDE') {
+                this.CurrentToken().type == 'DIVIDE' ||
+                this.CurrentToken().type == 'POW'|| 
+                this.CurrentToken().type == 'MODULUS') {
 
             switch(this.CurrentToken().type) {
                 case 'MULTIPLY':
@@ -307,7 +316,15 @@ class Calculator{
                     break; 
                 case 'DIVIDE':
                     node = new BinOpNode("DIVIDE", node, this.Divide());
-                    break; 
+                    break;
+                case 'POW':
+                    this.MatchAndEat('POW');
+                    node = new BinOpNode("POW", node, this.Factor());
+                    break;
+                case 'MODULUS':
+                    this.MatchAndEat('MODULUS');
+                    node =new BinOpNode("MODULUS", node, this.Term());
+                    break;
             }
         }   
         return node;
@@ -564,6 +581,12 @@ class BinOpNode extends Node {
             case 'AND':
                 result = ((this.left == 'true') && (this.right == 'true'));
                 break;
+            case 'POW':
+                result = (Math.pow(this.left.eval(), this.right.eval()));
+                break;
+            case 'MODULUS':
+                result = (this.left.eval() % this.right.eval());
+                break;
         }
         return result;
     }
@@ -682,11 +705,9 @@ function main() {
 function main2(){
     var calc = new Calculator();
     var tokenizer = new Tokenizer();
-    var script = "cout = 5" +
-    "msg = cout " +
-    "cout = cout + msg; ";
+    var script = "cout = 5*7^2; "
     calc.tokens = tokenizer.Tokenize(script);
-    //console.log(calc.tokens);
+    console.log(calc.tokens);
     var script = calc.Block();
     script.forEach(node => {
         node.eval();
