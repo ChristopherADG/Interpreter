@@ -237,6 +237,9 @@ class Tokenizer{
             case "func":
                 type = "FUNC";
                 break;
+            case "for":
+                type = "FOR";
+                break;
             default:
             type = "VARIABLE";
         }
@@ -461,10 +464,10 @@ class Calculator{
         var value;
         this.symbolTable.forEach(vari => {
             if(vari.name == name){
-                
                 value = vari.value;
             }
         });
+        //console.log(value);
         if(value != null){
             return value;
         }
@@ -488,6 +491,14 @@ class Calculator{
 
         }else if(type == "VARIABLE" && this.GetToken(1).type == "LEFT_PAREN"){
             node = this.FUnctionCall();
+
+        }else if(type == "FOR" && this.GetToken(1).type == "LEFT_PAREN"){
+            
+            node = this.For();
+        }else{
+            node = this.BooleanExpression();
+            //console.log(this.symbolTable);
+            //console.log(node);
         }
         return node;
     }
@@ -498,6 +509,25 @@ class Calculator{
         condition = this.Relation();
         body = this.Block();
         return new WhileNode(condition, body);
+    }
+
+    For(){
+        var assig, condition, upgrade, body;
+        this.MatchAndEat("FOR");
+        this.MatchAndEat("LEFT_PAREN");
+        assig = this.Assignment();
+        //console.log(assig);
+        this.MatchAndEat("COMMA");
+        condition = this.Relation();
+        //console.log(condition);
+        this.MatchAndEat("COMMA");
+        upgrade = this.Assignment();
+        //console.log(upgrade);
+        this.MatchAndEat("RIGHT_PAREN");
+        body = this.Block();
+        var node = new ForNode(assig,condition,upgrade,body);
+        //console.log(node);
+        return node;
     }
 
     Assignment(){
@@ -621,7 +651,7 @@ class VariableNode extends Node{
         this.parser = parser;
     }
     eval(){
-        var varValue= this.parser.getVariable(this.varName);
+        var varValue = this.parser.getVariable(this.varName);
         if(varValue == null){
             console.log("Undefined Variable: " + this.varName);
         }
@@ -754,6 +784,10 @@ class BlockNode extends Node{
         var ret = null;
         this.statements.forEach(statement => {
             ret = statement.eval();
+            if(statement instanceof BinOpNode){
+                console.log(ret);
+            }
+            
         });
         
         return ret;
@@ -784,13 +818,31 @@ class WhileNode extends Node
         this.body = body;
     }
     eval(){
-    var ret = null;
-    while (this.condition.eval())
-    {
-        ret = this.body.eval();
+        var ret = null;
+        while (this.condition.eval()){
+            ret = this.body.eval();
+        }
+        return ret;
     }
-    return ret;
+}
+
+class ForNode extends Node{
+    constructor(assig, condition, upgrade, body){
+        super();
+        this.assig = assig;
+        this.condition = condition;
+        this.upgrade = upgrade;
+        this.body = body;
     }
+
+    eval(){
+        var ret = null;
+        for (var index = this.assig.eval(); this.condition.eval(); index += this.upgrade.eval()) {
+            ret = this.body.eval();
+        }
+        return ret;
+    }
+
 }
 
 class IfNode extends Node{
@@ -920,11 +972,12 @@ function main(){
         var calc = new Calculator();
         var tokenizer = new Tokenizer();
         var script = data.toString();
+        script += " ";
         calc.tokens = tokenizer.Tokenize(script);
         //console.log(calc.tokens);
         var script = calc.Block();
         script.eval();
-        console.log(calc.symbolTable);
+        //console.log(calc.symbolTable);
     });
 }
 

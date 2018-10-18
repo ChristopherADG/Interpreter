@@ -1,9 +1,6 @@
-
-func calc(num, otronum)
-    pi = pi^e
-    result = num + otronum
+klaus = 1
+for (index = 0, index <= 5, index = index + 1)
+    klaus = index
+    klaus + 0
 ;
-
-Chris = -5
-2+2;
 ;
