@@ -1,9 +1,24 @@
-    func cambiar(num){
-        return = num
+    func cuenta(num){
+        for(index = 1, index <= num, index = index+1)
+            if index%2 == 0
+                if index>2
+                    pi + 0
+                ; else
+                    pi + -10
+                ;
+            ; 
+            else
+                e + 0 
+            ;
+        ;
     };
-klaus = 5
-klaus = cambiar(6)
-    for(index = 1, index != klaus, index = index +1)
-        0+index
-    ;
+
+-5 + 5
+klaus = (-5+-10)^3
+klaus +0
+cuenta(10)
+klaus = 1/16
+klaus + 0
+Chris = pi
+Chris +0
 ;

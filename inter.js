@@ -277,12 +277,18 @@ class Calculator{
     }
 
     Factor() {
-        var result = null; 
+        var result = null;
+        
+        if(this.CurrentToken().type == "SUBTRACT"){
+            this.MatchAndEat("SUBTRACT");
+            var node = new NegOpNode(this.Factor());
+            return node;
+        }
 
         if (this.CurrentToken().type == 'LEFT_PAREN') {
 
             this.MatchAndEat('LEFT_PAREN');
-            result = this.BooleanExpression();
+            result = this.Relation();
             this.MatchAndEat('RIGHT_PAREN');
 
         } else if(this.CurrentToken().type == 'NUMBER'){
@@ -308,7 +314,7 @@ class Calculator{
     }
 
     Term() {
-        var node = this.SignedFactor();
+        var node = this.Factor();
 
         while ( this.CurrentToken().type == 'MULTIPLY' ||
                 this.CurrentToken().type == 'DIVIDE' ||
@@ -396,51 +402,6 @@ class Calculator{
         return node;
     }
 
-    BooleanTerm(){
-        var node = this.NotFactor(); //BooleanFactor
-
-        while(this.CurrentToken().type == "AND"){
-            this.MatchAndEat("AND");
-            node = new BinOpNode("AND", node, this.Relation());
-        }
-        return node;
-    }
-
-    BooleanExpression(){
-        var node = this.BooleanTerm();
-
-        while(this.CurrentToken().type == "OR" ||
-                this.CurrentToken().type == "AND"){
-
-            switch (this.CurrentToken().type) {
-                case "OR":
-                    this.MatchAndEat("OR");
-                    node = new BinOpNode("OR", node, this.BooleanTerm());
-                    break;
-            }
-        }
-
-        return node;
-    }
-
-    SignedFactor(){
-        if(this.CurrentToken().type == "SUBTRACT"){
-            this.MatchAndEat("SUBTRACT");
-            var node = new NegOpNode(this.Factor());
-            return node;
-        }
-        return this.Factor();
-    }
-
-    NotFactor(){
-        if (this.CurrentToken().type == "NOT"){
-            this.MatchAndEat("NOT");
-            var node = this.Relation();
-            return new NotOpNode(node);
-        }
-        return this.Relation();
-    }
-
     setVariable(name, value){
         var bandera = false;
         var pos = 0;
@@ -501,7 +462,7 @@ class Calculator{
             
             node = this.For();
         }else{
-            node = this.BooleanExpression();
+            node = this.Relation();
             //console.log(this.symbolTable);
             //console.log(node);
         }
@@ -903,7 +864,7 @@ class Parameter extends Node{
     constructor(name, value){
         super();
         if(typeof(name) == undefined && typeof(value) != undefined){
-            console.log("aqui");
+            //console.log("aqui");
             this.value = value;
             this.name = name;
         }else if(typeof(name) == "string"){
@@ -991,5 +952,3 @@ function main(){
 }
 
 main();
-
-//Pagina 229
