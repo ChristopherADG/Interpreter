@@ -100,7 +100,7 @@ class Tokenizer{
     }
 
     IsParen(chr){
-        return (chr == '(') || (chr == ')');
+        return (chr == '(') || (chr == ')') || (chr == ',');
     }
 
     FindParenType(chr){
@@ -111,6 +111,9 @@ class Tokenizer{
                 break;
             case ')':
                 type = "RIGHT_PAREN";
+                break;
+            case ',':
+                type = "COMMA";
                 break; 
         }
         return type;
@@ -231,6 +234,9 @@ class Tokenizer{
             case "else":
                 type = "ELSE";
                 break;
+            case "func":
+                type = "FUNC";
+                break;
             default:
             type = "VARIABLE";
         }
@@ -242,7 +248,7 @@ class Calculator{
     constructor(){
         this.currentTokenPosition = 0;
         this.tokens = [];
-        this.symbolTable = [{name: "pi", value: 3.141592653589793}];
+        this.symbolTable = [{name: "pi", value: 3.141592653589793},{name: "e", value: 2.718281828459045}];
     }
 
     GetToken(offset){
@@ -256,10 +262,6 @@ class Calculator{
         return this.GetToken(0);
     }
 
-    EatToken(offset){
-        this.currentTokenPosition += offset;
-    }
-
     MatchAndEat(type){
         var token = this.CurrentToken();
 
@@ -267,7 +269,7 @@ class Calculator{
             console.log("Saw " + token.type +
                             " but " + type + " expected");
         }
-        this.EatToken(1);
+        this.currentTokenPosition += 1;
         return token;
     }
 
@@ -283,12 +285,23 @@ class Calculator{
         } else if(this.CurrentToken().type == 'NUMBER'){
             var token = this.MatchAndEat("NUMBER");
             result = new NumberNode(parseFloat(token.text));
+
         } else if(this.CurrentToken().type == 'VARIABLE'){
-            var token = this.MatchAndEat("VARIABLE");
-            var node = new VariableNode(token.text, this);
+
+            var node = null;
+            if (this.GetToken(1).type == 'LEFT_PAREN'){
+                node = this.FUnctionCall();
+                //console.log(node);
+            }
+            else{
+                var token = this.MatchAndEat("VARIABLE");
+                var varNode = new VariableNode(token.text, this);
+                //console.log(varNode);
+                return varNode;
+            }
             return node;
         }
-        return result;
+        return result;``
     }
 
     Term() {
@@ -361,9 +374,7 @@ class Calculator{
                 case "GREATER":
                     this.MatchAndEat("GREATER");
                     node = new BinOpNode("GREATER", node, this.ArithmeticExpression());
-                    // console.log(node.left.eval());
-                    // console.log(node.right.eval());
-                    // console.log(node.op);
+                
                     break;
                 case "LESSEQUAL":
                     this.MatchAndEat("LESSEQUAL");
@@ -463,23 +474,22 @@ class Calculator{
     Statement(){
         var node = null;
         var type = this.CurrentToken().type;
-        if (this.IsAssignment()){
+        if (type == "VARIABLE" && this.GetToken(1).type == "ASSIGMENT"){
             node = this.Assignment();
-        }else if (this.IsWhile())
-        {
+
+        }else if (type == "WHILE"){
             node = this.While();
-        }else if (this.IsIfElse()){
+
+        }else if (type == "IF" || type == "ELSE"){
             node = this.If();
-        }
-        else{
-            node = this.BooleanExpression();
+
+        }else if (type == "FUNC" && this.GetToken(1).type == "VARIABLE"){
+            node = this.FuntionDef();
+
+        }else if(type == "VARIABLE" && this.GetToken(1).type == "LEFT_PAREN"){
+            node = this.FUnctionCall();
         }
         return node;
-    }
-
-
-    IsWhile(){
-        return this.CurrentToken().type == "WHILE"
     }
 
     While(){
@@ -490,22 +500,15 @@ class Calculator{
         return new WhileNode(condition, body);
     }
 
-    IsAssignment(){
-        var type = this.CurrentToken().type;
-        return type == "VARIABLE" && this.GetToken(1).type == "ASSIGMENT";
-    }
-
     Assignment(){
+            var node = null;
             var name = this.MatchAndEat("VARIABLE").text;
             this.MatchAndEat("ASSIGNMENT");
-            var value = this.Relation();
-            var node = new AssignmentNode(name, value, this);
-            return node;
-    }
 
-    IsIfElse(){
-        var type = this.CurrentToken().type;
-        return type == "IF" || type == "ELSE";
+            var value = this.Relation();
+            node = new AssignmentNode(name, value, this);
+
+            return node;
     }
 
     If(){
@@ -514,14 +517,70 @@ class Calculator{
         condition = this.Relation();
         thenPart = this.Block();
         if ( this.CurrentToken().type == "ELSE" ){
-             this.MatchAndEat("ELSE");
+            
+            this.MatchAndEat("ELSE");
             if (this.CurrentToken().type == "IF" ){
                 elsePart = this.If();
             }else{
                 elsePart = this.Block();
             } 
         }
-        return new IfNode(condition, thenPart, elsePart);
+        var node = new IfNode(condition, thenPart, elsePart);
+        return node;
+    }
+
+    FuntionDef(){
+        this.MatchAndEat("FUNC");
+        var functionName = this.MatchAndEat("VARIABLE").text;
+
+        this.MatchAndEat('LEFT_PAREN');
+        var parameters = this.FuntionParameters(); //Modificar
+        this.MatchAndEat('RIGHT_PAREN');
+        var functionBody = this.Block();
+        var func = new Function(functionName, functionBody, parameters);
+        var functionVariable = new AssignmentNode(functionName, func, this);
+
+        return functionVariable;
+    }
+
+    FuntionParameters(){
+        var parameters = [];
+        if(this.CurrentToken().type == "VARIABLE"){
+            parameters.push(new Parameter(this.MatchAndEat("VARIABLE").text));
+
+            while(this.CurrentToken().type == "COMMA"){
+                this.MatchAndEat("COMMA");
+                parameters.push(new Parameter(this.MatchAndEat("VARIABLE").text));
+            }
+        }
+        return parameters;
+    }
+
+    FUnctionCall(){
+        var functionName = this.MatchAndEat("VARIABLE").text;
+        var callFuntionName = new VariableNode(functionName, this);
+        this.MatchAndEat('LEFT_PAREN');
+        var actualParameters = this.FunctionCallParameters();
+        this.MatchAndEat('RIGHT_PAREN');
+
+
+        var functionCallNode = new FunctionCallNode(callFuntionName, actualParameters, this);
+        return functionCallNode;
+
+    }
+
+    FunctionCallParameters(){
+        var actualParameters = null;
+        var expression = this.Relation();
+        if(expression != null){
+            actualParameters = [];
+            actualParameters.push(new Parameter(expression));
+            while (this.CurrentToken().type == "COMMA") {
+                this.MatchAndEat('COMMA');
+                actualParameters.push(new Parameter(this.Relation()));
+            }
+        }
+        return actualParameters;
     }
 
     Block(){
@@ -532,6 +591,21 @@ class Calculator{
         }
         this.MatchAndEat("END");
         return new BlockNode(statements);
+    }
+
+    ExecuteFunction(funtion, boundParameters){
+        var savedSymbolTable = this.symbolTable;
+        //console.log(savedSymbolTable);
+
+        for (var index = 0; index < boundParameters.length; index++) {
+            var param = boundParameters[index];
+            this.setVariable(param.getName(), param.getValue());       
+        }
+
+        var ret = funtion.eval();
+        this.symbolTable = savedSymbolTable;
+        //console.log(ret);
+        return ret;
     }
 }  
 
@@ -640,20 +714,19 @@ class NumberNode extends Node
     }
 }
 
-class BooleanNode extends Node
-{
-    constructor(value){
+class NegOpNode extends Node{
+    constructor(node){
         super();
-        this.value = value;
-        
+        this.node = node;
     }
 
-    eval(){
-        return this.value;
+    ToInt(node){
+        var res = node.eval();
+        return res;
     }
-   
-    toString(){
-        return this.value + "";
+    eval(){
+        var result = -this.ToInt(this.node);
+        return result;
     }
 }
 
@@ -664,7 +737,10 @@ class AssignmentNode extends Node{
         this.value = value;
         this.parser = parser;
     }
-    eval(){ 
+    eval(){
+        if(this.value instanceof Function){
+            return this.parser.setVariable(this.name, this.value);
+        }
         return this.parser.setVariable(this.name, this.value.eval());
     }
 }
@@ -731,12 +807,107 @@ class IfNode extends Node{
             if(this.condition.eval()){
                 ret = this.thenPart.eval();
             }
-        }else if((this.condition != null) && (this.elsePart != null)){
+        } 
+        if((this.condition != null) && (this.elsePart != null)){
             if(!this.condition.eval()){
-                ret = this.thenPart.eval();
+                ret = this.elsePart.eval();
             }
         }
         return ret;
+    }
+}
+
+class Function extends Node{
+    constructor(name, body, parameters){
+        super();
+        this.name = name;
+        this.body = body;
+        this.parameters = parameters;
+    }
+
+    eval(){
+        return this.body.eval();
+    }
+
+    getParameters(){
+        return this.parameters;
+    }
+    getBody(){
+        return this.body;
+    }
+    getName(){
+        return this.name;
+    }
+}
+
+class Parameter extends Node{
+    constructor(name, value){
+        super();
+        if(typeof(name) == undefined && typeof(value) != undefined){
+            console.log("aqui");
+            this.value = value;
+            this.name = name;
+        }else if(typeof(name) == "string"){
+            //console.log("Name");
+            this.name = name;
+        }else if(typeof(name) == "object"){
+            //console.log("Value");
+            this.value = name;
+        }
+    }
+    eval(){
+        return this.value.eval();
+    }
+    getName(){
+        return this.name;
+    }
+    getValue(){
+        return this.value.eval();
+    }
+}
+
+class FunctionCallNode extends Node{
+    constructor(name, actualParameters, parser){
+        super();
+        this.name = name;
+        this.actualParameters = actualParameters;
+        this.parser = parser;
+    }
+    eval(){
+        var func  = this.name.eval();
+        var boundParameters = [];
+        if(func.getParameters() != null){
+            if(this.actualParameters != null){
+                if(this.actualParameters.length < func.getParameters().length){
+                    console.exception("Too Few Parameters in Function Call: "+ func.getName());
+                }else if(this.actualParameters.length > func.length){
+                    console.exception("Too Few Parameters in Function Call: " + func.getName());
+                }else{
+                    for (var index = 0; index < this.actualParameters.length; index++) {
+                        var params = func.getParameters();
+                        var name = params[index].getName();
+                        var value = this.actualParameters[index].getValue();
+                        var h = new boundParameter(name, value);
+                        boundParameters.push(h);
+                    }
+                }
+            }
+        }
+        return this.parser.ExecuteFunction(func, boundParameters);
+    }
+}
+
+class boundParameter{
+    constructor(name, value){
+        this.name = name;
+        this.value = value;
+    }
+
+    getName(){
+        return this.name;
+    }
+    getValue(){
+        return this.value;
     }
 }
 
@@ -759,4 +930,4 @@ function main(){
 
 main();
 
-//Pagina 196
+//Pagina 229
