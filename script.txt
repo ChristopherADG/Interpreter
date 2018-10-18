@@ -1,6 +1,9 @@
-klaus = 1
-for (index = 0, index <= 5, index = index + 1)
-    klaus = index
-    klaus + 0
-;
+    func cambiar(num){
+        return = num
+    };
+klaus = 5
+klaus = cambiar(6)
+    for(index = 1, index != klaus, index = index +1)
+        0+index
+    ;
 ;

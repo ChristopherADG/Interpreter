@@ -490,7 +490,12 @@ class Calculator{
             node = this.FuntionDef();
 
         }else if(type == "VARIABLE" && this.GetToken(1).type == "LEFT_PAREN"){
-            node = this.FUnctionCall();
+            try{
+                node = this.FUnctionCall();
+            }catch{
+                console.log("hoa");
+            }
+            
 
         }else if(type == "FOR" && this.GetToken(1).type == "LEFT_PAREN"){
             
@@ -593,6 +598,7 @@ class Calculator{
         var actualParameters = this.FunctionCallParameters();
         this.MatchAndEat('RIGHT_PAREN');
 
+        //console.log(actualParameters);
 
         var functionCallNode = new FunctionCallNode(callFuntionName, actualParameters, this);
         return functionCallNode;
@@ -624,17 +630,15 @@ class Calculator{
     }
 
     ExecuteFunction(funtion, boundParameters){
-        var savedSymbolTable = this.symbolTable;
-        //console.log(savedSymbolTable);
-
+        var savedSymbolTable = Array.from(this.symbolTable);
+        // console.log(savedSymbolTable);
         for (var index = 0; index < boundParameters.length; index++) {
             var param = boundParameters[index];
             this.setVariable(param.getName(), param.getValue());       
         }
-
         var ret = funtion.eval();
-        this.symbolTable = savedSymbolTable;
-        //console.log(ret);
+
+        this.symbolTable = Object.assign(savedSymbolTable);
         return ret;
     }
 }  
@@ -783,11 +787,14 @@ class BlockNode extends Node{
     eval(){
         var ret = null;
         this.statements.forEach(statement => {
-            ret = statement.eval();
-            if(statement instanceof BinOpNode){
-                console.log(ret);
-            }
-            
+            try{
+                ret = statement.eval();
+                if(statement instanceof BinOpNode){
+                    console.log(ret);
+                }
+            }catch(e){
+                console.log(e);
+            } 
         });
         
         return ret;
@@ -930,19 +937,21 @@ class FunctionCallNode extends Node{
         var boundParameters = [];
         if(func.getParameters() != null){
             if(this.actualParameters != null){
+                //console.log(this.actualParameters.length, func.getParameters().length);
                 if(this.actualParameters.length < func.getParameters().length){
-                    console.exception("Too Few Parameters in Function Call: "+ func.getName());
-                }else if(this.actualParameters.length > func.length){
-                    console.exception("Too Few Parameters in Function Call: " + func.getName());
+                    throw "Too Few Parameters in Function Call: " + func.getName()
+                }else if(this.actualParameters.length > func.getParameters().length){
+                    throw "Too Much Parameters in Function Call: " + func.getName()
                 }else{
                     for (var index = 0; index < this.actualParameters.length; index++) {
-                        var params = func.getParameters();
-                        var name = params[index].getName();
+                        
+                        var name = func.getParameters()[index].getName();
                         var value = this.actualParameters[index].getValue();
-                        var h = new boundParameter(name, value);
-                        boundParameters.push(h);
+                        boundParameters.push(new boundParameter(name, value));
                     }
                 }
+            }else{
+                throw "Expected Parameters in Function Call: " + func.getName()
             }
         }
         return this.parser.ExecuteFunction(func, boundParameters);
